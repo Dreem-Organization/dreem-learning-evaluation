@@ -2,8 +2,8 @@
 
 DOD-Evaluation provides tools to build sleep staging consensus and
 compare sleep stagings to these consensus. Our paper "Dreem Open
-Datasets: Multi-Scored Sleep Datasets" to compare Human and Automated
-sleep staging uses the code from this repository to computer the scorer
+Datasets: Multi-Scored Sleep Datasets to compare Human and Automated
+sleep staging" uses the code from this repository to computer the scorer
 consensus and the model performances. The repository also contains each
 of the scorer's sleep staging on DOD-O and DOD-H, their consensus on
 both dataset and the results from all the models presented in the paper.
