@@ -9,6 +9,73 @@ from sklearn.metrics import cohen_kappa_score, f1_score
 from tabulate import tabulate
 
 
+def compute_night_metrics(hypnogram):
+    cpt_sod = 0
+    results = {
+        "waso": 0,
+        "sod": None,
+        "lps": None,
+        "tst": 0,
+        "wake": 0,
+        "n1": 0,
+        "n2": 0,
+        "n3": 0,
+        "rem": 0,
+        "rem_sleep_latency": None
+    }
+    for index, stage in enumerate(hypnogram):
+        if stage in [1, 2, 3, 4]:
+            cpt_sod += 1
+        else:
+            cpt_sod = 0
+        if cpt_sod == 10 and results["lps"] is None:
+            results["lps"] = index
+        if stage == 0:
+            results["wake"] += 1
+        if cpt_sod == 3 and results["sod"] is None:
+            results["sod"] = index
+        if results["sod"] is not None:
+            if stage == 0:
+                results["waso"] += 1
+            else:
+                results["tst"] += 1
+                if stage == 1:
+                    results["n1"] += 1
+                elif stage == 2:
+                    results["n2"] += 1
+                elif stage == 3:
+                    results["n3"] += 1
+                elif stage == 4:
+                    results["rem"] += 1
+    results["len_hypnogram"] = len(hypnogram)
+    results["time_in_bed"] = results["tst"] + results["sod"] + results["waso"]
+    results["%n1"] = results["n1"] / len(hypnogram) * 100
+    results["%n2"] = results["n2"] / len(hypnogram) * 100
+    results["%n3"] = results["n3"] / len(hypnogram) * 100
+    results["%rem"] = results["rem"] / len(hypnogram) * 100
+    results["%wake"] = results["wake"] / len(hypnogram) * 100
+
+    results_formatted = OrderedDict(
+        {
+            "TST (min)": (results["tst"] * 30) / 60,
+            "Sleep efficiency (%)": (results["tst"] / results["time_in_bed"]) * 100,
+            "Sleep latency (min)": (results["sod"] * 30) / 60,
+            "WASO (min)": (results["waso"] * 30) / 60,
+            "Stage Wake duration (min)": (results["wake"] * 30) / 60,
+            "Stage Wake (%)": results["%wake"],
+            "Stage N1 duration (min)": (results["n1"] * 30) / 60,
+            "Stage N1 (%)": results["%n1"],
+            "Stage N2 duration (min)": (results["n2"] * 30) / 60,
+            "Stage N2 (%)": results["%n2"],
+            "Stage N3 duration (min)": (results["n3"] * 30) / 60,
+            "Stage N3 (%)": results["%n3"],
+            "REM sleep duration (min)": (results["rem"] * 30) / 60,
+            "REM sleep (%)": results["%rem"],
+        }
+    )
+    return results_formatted
+
+
 def compute_soft_agreement(hypnogram, hypnograms_consensus):
     epochs = range(len(hypnogram))
     probabilistic_consensus = np.zeros((6, len(hypnogram)))
@@ -29,9 +96,9 @@ def build_consensus_hypnogram(ranked_hypnograms_consensus):
 
     consensus_hypnogram = np.argmax(probabilistic_consensus, 0)
     ties = (
-                   probabilistic_consensus ==
-                   probabilistic_consensus[consensus_hypnogram, range(number_of_epochs)]
-           ).sum(0) > 1
+        probabilistic_consensus ==
+        probabilistic_consensus[consensus_hypnogram, range(number_of_epochs)]
+    ).sum(0) > 1
     consensus_hypnogram[ties] = np.array(ranked_hypnograms_consensus_array[0])[ties]
     consensus_probability = (probabilistic_consensus[consensus_hypnogram, range(number_of_epochs)] /
                              len(ranked_hypnograms_consensus_array))
@@ -190,11 +257,11 @@ class ResultsEvaluation:
 
                 if len(self.result_hypnograms[result][record]) == self.hypnogram_sizes[record]:
                     self.result_hypnograms[result][record] = self.result_hypnograms[result][record][
-                                                             index_min:index_max]
+                        index_min:index_max]
             for scorer in self.scorers:
                 # removes light on, off and update hypnograll size accordingly
                 self.scorer_hypnograms[scorer][record] = self.scorer_hypnograms[scorer][record][
-                                                         index_min:index_max]
+                    index_min:index_max]
                 self.hypnogram_sizes[record] += index_max - self.hypnogram_sizes[record] - index_min
 
         # check that the length are ok
@@ -312,6 +379,33 @@ class ResultsEvaluation:
                 tablefmt="fancy_grid"
             )
         )
+
+    def print_demographics(self):
+        results = {
+            "TST (min)": [],
+            "Sleep efficiency (%)": [],
+            "Sleep latency (min)": [],
+            "WASO (min)": [],
+            "Stage Wake duration (min)": [],
+            "Stage Wake (%)": [],
+            "Stage N1 duration (min)": [],
+            "Stage N1 (%)": [],
+            "Stage N2 duration (min)": [],
+            "Stage N2 (%)": [],
+            "Stage N3 duration (min)": [],
+            "Stage N3 (%)": [],
+            "REM sleep duration (min)": [],
+            "REM sleep (%)": [],
+        }
+        for scorer in self.scorers:
+            for record in self.records:
+                for k, v in compute_night_metrics(self.scorer_hypnograms[scorer][record]).items():
+                    results[k].append(v)
+
+        average_results = {
+            k: np.nanmean(v) for k, v in results.items()
+        }
+        print(average_results)
 
     def return_scores(self):
         keys = self.results + ["Overall Scorers"] + sorted(self.scorers)
