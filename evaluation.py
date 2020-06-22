@@ -359,3 +359,38 @@ class ResultsEvaluation:
                                                                   scorer_hypnogram,
                                                                   labels=[0, 1, 2, 3, 4])
         return scorers_confusion_matrices, models_confusion_matrices
+
+
+def evaluation_bis(models_folder, scorer_folder, metric=f1_score, records=None, blacklist=None):
+    if records is None:
+        records = [x.replace(".json", "") for x in os.listdir(scorer_folder)]
+    if blacklist is not None:
+        records = [x for x in records if x not in blacklist]
+    results = {}
+    for model in os.listdir(models_folder):
+        model_folder = f"{models_folder}/{model}/"
+        hypno_model, hypno_true = {}, {}
+        for record in records:
+            hypno_model[record] = json.load(open(f"{model_folder}/{record}.json"))
+            hypno_true[record] = json.load(open(f"{scorer_folder}/{record}.json"))
+        values = []
+        for reps in range(1):
+            y_model, y_scorer = [], []
+            for record in records:
+                if np.random.uniform() < 1:
+                    try:
+                        _y_model = hypno_model[record]
+                        _y_scorer = hypno_true[record]
+                        assert len(_y_model) == len(_y_scorer), record
+                        y_model += _y_model
+                        y_scorer += _y_scorer
+                    except FileNotFoundError:
+                        pass
+
+            y_model = np.array(y_model)
+            y_scorer = np.array(y_scorer)
+            y_model, y_scorer = y_model[y_scorer >= 0], y_scorer[y_scorer >= 0]
+            values += [metric(y_scorer, y_model)]
+        results[model] = np.mean(values)
+        results[model + "_std"] = np.percentile(values, 2.5), np.percentile(values, 97.5)
+    return results
